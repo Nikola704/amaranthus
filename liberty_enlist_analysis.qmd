@@ -1,0 +1,715 @@
+---
+title: "Glufosinate and 2,4-D dose response and their efficacy on waterhemp cohorts with different heights"
+author:
+  - name: "Ahmadreza Mobli"
+  - name: "Luma Loreiro"
+  - name: "Nikola Arsenijevic"
+  - name: "Rodrigo Werle"
+format: html
+editor: visual
+theme: lumen
+embed-resources: true
+---
+
+This analysis covers the dose-response experiment in the greenhouse, evaluating the efficacy of glufosinate, 2,4-D, and their tank-mixes on waterhemp cohorts with different heights.
+
+Response variable was biomass reduction, estimated by comparing the average biomaass of nontreated control and the biomass of herbicide treatment, 21 DAT.
+
+Height was treated as fixed effect, which allowed for grouping factor and combining the estimated curves together on the same figure.
+
+Data was filtered by population, and populations were filtered by their respective herbicide treatments.
+
+On figure axes, the doses are displayed from 0 to 2x —\> 0, 0.125, 0.25, 0.5, 1, 1.5, and 2.
+
+## Packages
+
+```{r message=FALSE, warning=FALSE}
+library(drc)
+library(ggplot2)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(ggthemes)
+library(readxl)
+library(tibble)
+library(knitr)
+library(kableExtra)  # For additional formatting options
+
+
+options(scipen = 999)
+options(digits = 6)  # Display numbers with 6 significant digits
+
+```
+
+## Data
+
+#### Filtering the data by populations A101 and A106.
+
+```{r}
+data <- read_excel("liberty_enlist.xlsx", sheet = 1)
+
+data_clean_101 <- data %>%
+  filter(population == "101")
+
+
+data_clean_106 <- data %>%
+  filter(population == "106")
+
+```
+
+#### Filtering the population data, by herbicide treatment.
+
+```{r}
+
+## Population A101
+
+enlist_101 <- data_clean_101 %>%
+  filter(herbicide %in% c("Enl", "Check"))
+
+liberty_101 <- data_clean_101 %>%
+  filter(herbicide %in% c("Lib", "Check"))
+
+liberty_enlist_101 <- data_clean_101 %>%
+  filter(herbicide %in% c("Lib + Enl", "Check"))
+
+enlist_liberty_101 <- data_clean_101 %>%
+  filter(herbicide %in% c("Enl + Lib", "Check"))
+
+
+
+## Population A106
+
+enlist_106 <- data_clean_106 %>%
+  filter(herbicide %in% c("Enl", "Check"))
+
+liberty_106 <- data_clean_106 %>%
+  filter(herbicide %in% c("Lib", "Check"))
+
+enlist_liberty_106 <- data_clean_106 %>%
+  filter(herbicide %in% c("Enl + Lib", "Check"))
+
+liberty_enlist_106 <- data_clean_106 %>%
+  filter(herbicide %in% c("Lib + Enl", "Check"))
+
+
+
+# ASSIGNING FACTOR LEVEL TO HEIGHT VARIABLE
+
+enlist_101$height <- as.factor(enlist_101$height)
+liberty_101$height <- as.factor(liberty_101$height)
+liberty_enlist_101$height <- as.factor(liberty_enlist_101$height)
+enlist_liberty_101$height <- as.factor(enlist_liberty_101$height)
+
+
+enlist_106$height <- as.factor(enlist_106$height)
+liberty_106$height <- as.factor(liberty_106$height)
+liberty_enlist_106$height <- as.factor(liberty_enlist_106$height)
+enlist_liberty_106$height <- as.factor(enlist_liberty_106$height)
+```
+
+## Fitting the models for dose-response.
+
+Models were selected using mselect() function. A list of different dose-response models were tested, including the 2-, 3-, 4-, and 5-parameter log-logistic models (`LL.x()`), Weibull models (`W1.x()`, `W2.x()`), and others like the `G.x()` models for Gompertz curves, and `EXD.x()` for exponential decay models. The best model was selected according to Akaike Information Criterion (AIC), to assess the model quality, where the lowest value presents the best model for our data. I went with the 4-parameter log-logistic model, as it gave me the most realistic estimates of the ED50 and ED90 values.
+
+### Components of the Code:
+
+1.  **`d_enlist_101 = drm(...)`**:
+
+    -   This assigns the fitted dose-response model to the variable `d_enlist_101`. The function `drm()` is used to fit dose-response models to data. This is example for our 2,4-D herbicide treatment, for population A101
+
+2.  **`data = enlist_101`**:
+
+    -   The dataset `enlist_101` is used, which contains the response variable (`reduction`) and the predictor variable (`dose_0`), as well as another independent variable (`height`).
+
+3.  **`reduction ~ dose_0`**:
+
+    -   This specifies the formula for the model. The response variable is `reduction`, and the predictor or independent variable is `dose_0` (the dose level).
+
+4.  **`height`**:
+
+    -   This indicates that `height` is an additional factor or variable considered in the model. This represents a covariate or grouping factor for different dose-response curves.
+
+5.  **`fct = LL.4(...)`**:
+
+    -   This specifies that the four-parameter log-logistic model is being used as the dose-response model, with four parameters (slope, lower limit, upper limit, and EC50).
+
+6.  **`fixed = c(NA, 0, 100, NA)`**:
+
+    -   Here, you’re fixing two of the parameters of the Weibull model:
+
+        -   **Slope (`b`)**: Unfixed (`NA`), meaning it will be estimated by the model.
+
+        -   **Lower limit (`c`)**: Fixed at 0. This means the response will approach 0 at the lowest dose levels.
+
+        -   **Upper limit (`d`)**: Fixed at 100, which constrains the maximum response to 100.
+
+        -   **EC50 (`e`)**: Unfixed (`NA`), meaning it will be estimated by the model.
+
+    By fixing certain parameters, I incorporated prior knowledge or assumptions about the biological system. In this case, the response is constrained to a minimum of 0 and a maximum of 100, which aligns with our biomass reduction estimator.
+
+7.  **`names = c("slope", "lower", "upper", "ec50")`**:
+
+    -   This labels the parameters for easier interpretation:
+
+        -   **slope**: The steepness of the dose-response curve.
+
+        -   **lower**: The lower limit of the response (fixed at 0).
+
+        -   **upper**: The upper limit of the response (fixed at 100).
+
+        -   **ec50**: The effective concentration (dose) that produces 50% of the maximal response.
+
+I am fitting a dose-response curve to the `enlist_101` dataset to model how the `reduction` (effect of our herbicide treatments on biomass reduction compared to nontreated control) depends on the `dose_0` of herbicides herein.
+
+-   The response is constrained to range between 0 and 100 --\> biomass reduction from 0 to 100%.
+
+```{r, warning=FALSE}
+
+## Population 101
+
+d_enlist_101 = drm(data = enlist_101, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_liberty_101 = drm(data = liberty_101, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_liberty_enlist_101 = drm(data = liberty_enlist_101, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_enlist_liberty_101 = drm(data = enlist_liberty_101, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+  
+
+
+## Population 106
+
+d_enlist_106 = drm(data = enlist_106, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_liberty_106 = drm(data = liberty_106, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_liberty_enlist_106 = drm(data = liberty_enlist_106, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+  
+d_enlist_liberty_106 = drm(data = enlist_liberty_106, reduction ~ dose_0, height, fct = LL.4(fixed = c(NA, 0, 100, NA), names = c("slope", "lower", "upper", "ec50")))
+```
+
+```{r, warning=FALSE, error=FALSE, include=FALSE}
+
+mselect(d_liberty_enlist_106, 
+        list(LL.2(), LL.3(), LL.4(), LL.5(), 
+             W1.2(), W1.3(), W1.4(), W2.2(), W2.3(), W2.4(), 
+             G.2(), G.3(), G.4(), 
+             EXD.2(), EXD.3(), 
+             MM.2()), 
+        nested = FALSE, 
+        sorted = c("IC", "Res var", "Lack of fit", "no"), 
+        linreg = FALSE, 
+        icfct = AIC)
+```
+
+## ED~50~ and ED~90~ estimates
+
+## 
+
+#### Enlist One - A101
+
+```{r, echo=FALSE}
+ed50_enlist_101 <- ED(d_enlist_101, 50)
+ed90_enlist_101 <- ED(d_enlist_101, 90)
+```
+
+## 
+
+#### Liberty - A101
+
+```{r, echo=FALSE}
+ed50_liberty_101 <- ED(d_liberty_101, 50)
+ed90_liberty_101 <- ED(d_liberty_101, 90)
+```
+
+## 
+
+#### Enlist One + Liberty (1x) - A101
+
+```{r, echo=FALSE}
+ed50_liberty_enlist_101 <- ED(d_liberty_enlist_101, 50)
+ed90_liberty_enlist_101 <- ED(d_liberty_enlist_101, 90)
+```
+
+## 
+
+#### Liberty + Enlist One (1x) - A101
+
+```{r, echo=FALSE}
+ed50_enlist_liberty_101 <- ED(d_enlist_liberty_101, 50)
+ed90_enlist_liberty_101 <- ED(d_enlist_liberty_101, 90)
+```
+
+# ...     ...     ...     ...     ...     ...  
+
+#### Enlist One - A106
+
+```{r, echo=FALSE}
+ed50_enlist_106 <- ED(d_enlist_106, 50)
+ed90_enlist_106 <- ED(d_enlist_106, 90)
+```
+
+## 
+
+#### Liberty - A106
+
+```{r, echo=FALSE}
+ed50_liberty_106 <- ED(d_liberty_106, 50)
+ed90_liberty_106 <- ED(d_liberty_106, 90)
+```
+
+## 
+
+#### Enlist One + Liberty (1x) - A106
+
+```{r, echo=FALSE}
+ed50_liberty_enlist_106 <- ED(d_liberty_enlist_106, 50)
+ed90_liberty_enlist_106 <- ED(d_liberty_enlist_106, 90)
+```
+
+## 
+
+#### Liberty + Enlist One (1x) - A106
+
+```{r, echo=FALSE}
+ed50_enlist_liberty_106 <- ED(d_enlist_liberty_106, 50)
+ed90_enlist_liberty_106 <- ED(d_enlist_liberty_106, 90)
+```
+
+# ...     ...     ...     ...     ...     ...  
+
+## 
+
+```{r, warning = FALSE, echo=FALSE}
+
+# Below is the extraction of data from the models, to make them compatible with plotting with # ggplot package.
+
+a.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+a.2 <- data.frame(height = c("1"), a.1)
+a.3 <- data.frame(height = c("2"), a.1)
+a.4 <- data.frame(height = c("4"), a.1)
+a.5 <- data.frame(height = c("6"), a.1)
+a.6 <- data.frame(height = c("8"), a.1)
+a.7 <- data.frame(height = c("10"), a.1)
+
+nd.1 <- rbind(a.2, a.3, a.4, a.5, a.6, a.7)
+
+
+pmm.1 <- predict(d_enlist_101, newdata = nd.1, interval = "confidence")
+
+nd.1$p <- pmm.1[, 1]
+nd.1$pmin <- pmm.1[, 2]
+nd.1$pmax <- pmm.1[, 3]
+
+enlist_101$dose_1 = enlist_101$dose_0
+enlist_101$dose_1[enlist_101$dose_1 == 0] <- 0.5
+
+
+
+
+b.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 1000)))
+
+b.2 <- data.frame(height = c("1"), b.1)
+b.3 <- data.frame(height = c("2"), b.1)
+b.4 <- data.frame(height = c("4"), b.1)
+b.5 <- data.frame(height = c("6"), b.1)
+b.6 <- data.frame(height = c("8"), b.1)
+b.7 <- data.frame(height = c("10"), b.1)
+
+nd.2 <- rbind(b.2, b.3, b.4, b.5, b.6, b.7)
+
+
+
+
+pmm.2 <- predict(d_liberty_101, newdata = nd.2, interval = "confidence")
+
+nd.2$p <- pmm.2[, 1]
+nd.2$pmin <- pmm.2[, 2]
+nd.2$pmax <- pmm.2[, 3]
+
+liberty_101$dose_1 = liberty_101$dose_0
+liberty_101$dose_1[liberty_101$dose_1 == 0] <- 0.5
+
+
+
+
+c.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+c.2 <- data.frame(height = c("1"), c.1)
+c.3 <- data.frame(height = c("2"), c.1)
+c.4 <- data.frame(height = c("4"), c.1)
+c.5 <- data.frame(height = c("6"), c.1)
+c.6 <- data.frame(height = c("8"), c.1)
+c.7 <- data.frame(height = c("10"), c.1)
+
+nd.3 <- rbind(c.2, c.3, c.4, c.5, c.6, c.7)
+
+
+pmm.3 <- predict(d_liberty_enlist_101, newdata = nd.3, interval = "confidence")
+
+nd.3$p <- pmm.3[, 1]
+nd.3$pmin <- pmm.3[, 2]
+nd.3$pmax <- pmm.3[, 3]
+
+liberty_enlist_101$dose_1 = liberty_enlist_101$dose_0
+liberty_enlist_101$dose_1[liberty_enlist_101$dose_1 == 0] <- 0.5
+
+
+d.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+d.2 <- data.frame(height = c("1"), d.1)
+d.3 <- data.frame(height = c("2"), d.1)
+d.4 <- data.frame(height = c("4"), d.1)
+d.5 <- data.frame(height = c("6"), d.1)
+d.6 <- data.frame(height = c("8"), d.1)
+d.7 <- data.frame(height = c("10"), d.1)
+nd.4 <- rbind(d.2, d.3, d.4, d.5, d.6, d.7)
+
+
+pmm.4 <- predict(d_enlist_liberty_101, newdata = nd.4, interval = "confidence")
+
+nd.4$p <- pmm.4[, 1]
+nd.4$pmin <- pmm.4[, 2]
+nd.4$pmax <- pmm.4[, 3]
+
+enlist_liberty_101$dose_1 = enlist_liberty_101$dose_0
+enlist_liberty_101$dose_1[enlist_liberty_101$dose_1 == 0] <- 0.5
+
+
+
+e.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+e.2 <- data.frame(height = c("1"), e.1)
+e.3 <- data.frame(height = c("2"), e.1)
+e.4 <- data.frame(height = c("4"), e.1)
+e.5 <- data.frame(height = c("6"), e.1)
+e.6 <- data.frame(height = c("8"), e.1)
+e.7 <- data.frame(height = c("10"), e.1)
+
+nd.5 <- rbind(e.2, e.3, e.4, e.5, e.6, e.7)
+
+
+pmm.5 <- predict(d_enlist_106, newdata = nd.5, interval = "confidence")
+
+nd.5$p <- pmm.5[, 1]
+nd.5$pmin <- pmm.5[, 2]
+nd.5$pmax <- pmm.5[, 3]
+
+enlist_106$dose_1 = enlist_106$dose_0
+enlist_106$dose_1[enlist_106$dose_1 == 0] <- 0.5
+
+
+f.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+f.2 <- data.frame(height = c("1"), f.1)
+f.3 <- data.frame(height = c("2"), f.1)
+f.4 <- data.frame(height = c("4"), f.1)
+f.5 <- data.frame(height = c("6"), f.1)
+f.6 <- data.frame(height = c("8"), f.1)
+f.7 <- data.frame(height = c("10"), f.1)
+
+nd.6 <- rbind(f.2, f.3, f.4, f.5, f.6, f.7)
+
+
+pmm.6 <- predict(d_liberty_106, newdata = nd.6, interval = "confidence")
+
+nd.6$p <- pmm.6[, 1]
+nd.6$pmin <- pmm.6[, 2]
+nd.6$pmax <- pmm.6[, 3]
+
+liberty_106$dose_1 = liberty_106$dose_0
+liberty_106$dose_1[liberty_106$dose_1 == 0] <- 0.5
+
+
+g.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+g.2 <- data.frame(height = c("1"), g.1)
+g.3 <- data.frame(height = c("2"), g.1)
+g.4 <- data.frame(height = c("4"), g.1)
+g.5 <- data.frame(height = c("6"), g.1)
+g.6 <- data.frame(height = c("8"), g.1)
+g.7 <- data.frame(height = c("10"), g.1)
+
+nd.7 <- rbind(g.2, g.3, g.4, g.5, g.6, g.7)
+
+
+pmm.7 <- predict(d_liberty_enlist_106, newdata = nd.7, interval = "confidence")
+
+nd.7$p <- pmm.7[, 1]
+nd.7$pmin <- pmm.7[, 2]
+nd.7$pmax <- pmm.7[, 3]
+
+liberty_enlist_106$dose_1 = liberty_enlist_106$dose_0
+liberty_enlist_106$dose_1[liberty_enlist_106$dose_1 == 0] <- 0.5
+
+
+h.1 <- expand.grid(dose_0 = exp(seq(log(0.001), log(2), length = 50)))
+
+h.2 <- data.frame(height = c("1"), h.1)
+h.3 <- data.frame(height = c("2"), h.1)
+h.4 <- data.frame(height = c("4"), h.1)
+h.5 <- data.frame(height = c("6"), h.1)
+h.6 <- data.frame(height = c("8"), h.1)
+h.7 <- data.frame(height = c("10"), h.1)
+
+nd.8 <- rbind(h.2, h.3, h.4, h.5, h.6, h.7)
+
+
+pmm.8 <- predict(d_enlist_liberty_106, newdata = nd.8, interval = "confidence")
+
+nd.8$p <- pmm.8[, 1]
+nd.8$pmin <- pmm.8[, 2]
+nd.8$pmax <- pmm.8[, 3]
+
+enlist_liberty_106$dose_1 = enlist_liberty_106$dose_0
+enlist_liberty_106$dose_1[enlist_liberty_106$dose_1 == 0] <- 0.5
+```
+
+\
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+
+g1 <- ggplot(enlist_101, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.1, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n Herbicide dose") +
+  ggtitle("Dose response - 2,4-D; Population A101") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7)
+
+g1
+
+
+
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+g2 <- ggplot(liberty_101, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.2, aes(x = dose_0, y = p), size = 1.4) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") + 
+  xlab("\n Herbicide dose") +
+  ggtitle("\n Dose response - glufosinate; Population A101 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7); g2
+
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+ggplot(liberty_enlist_101, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.3, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n glufosinate dose") +
+  ggtitle("\n Dose response - glufosinate + 2,4-D (1x); Population A101 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7)
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+ggplot(enlist_liberty_101, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.4, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n 2,4-D dose") +
+  ggtitle("\n Dose response - 2,4-D + glufosinate (1x); Population A101 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7)
+```
+
+## Figures - Population A106
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+g5 <- ggplot(enlist_106, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.5, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n Herbicide dose") +
+  ggtitle("\n Dose response - 2,4-D; Population A106 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7); g5
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+g6 <- ggplot(liberty_106, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.6, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n Herbicide dose") +
+  ggtitle("\n Dose response - glufosinate; Population A106 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7); g6
+
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+
+g7 <- ggplot(liberty_enlist_106, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.7, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw() + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n glufosinate dose") +
+  ggtitle("\n Dose response - glufosinate + 2,4-D (1x); Population A106 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7); g7
+```
+
+```{r, fig.width=12, fig.height=10, warning=F, echo=FALSE}
+
+g8 <- ggplot(enlist_liberty_106, aes(x = dose_0, y = reduction, color = height, group = height)) + 
+  geom_line(data = nd.8, aes(x = dose_0, y = p), size = 1.2) + 
+  stat_summary(geom = "point", fun = "mean", size = 3, alpha = 0.8) + 
+  theme_bw(base_size = 20) + 
+  ylim(0, 100) + 
+  xlim(0, 2) + 
+  theme(
+    plot.caption = element_text(hjust = 0, size = 14),  # Increase caption text size
+    legend.position = "right",  # Put the legend at the bottom
+    axis.text = element_text(size = 16),  # Increase axes text size
+    axis.title = element_text(size = 18),  # Increase axes title size
+    plot.title = element_text(size = 20),  # Increase plot title size
+    legend.text = element_text(size = 14),  # Increase legend text size
+    legend.title = element_text(size = 16),  # Increase legend title size
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank()  # Remove minor grid lines
+  ) +
+  ylab("Biomass reduction (%) \n") +  # Add Y axis label
+  xlab("\n 2,4-D dose") +
+  ggtitle("\n Dose response - 2,4-D + glufosinate (1x); Population A106 \n") +
+  labs(
+    color = "Waterhemp height (in)",
+    caption = "\n *Red dashed line indicates 1x dose of label rate; \n ** Blue dashed lines indicate 50 and 90% of biomass reduction."
+  ) +
+  geom_vline(xintercept = 1, lty = "dashed", col = "darkred", size = 1, alpha = 0.7) +
+  geom_hline(yintercept = c(50, 90), lty = "dashed", col = "steelblue", alpha = 0.7); g8
+
+```
