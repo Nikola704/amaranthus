@@ -135,7 +135,7 @@ Models were selected using mselect() function. A list of different dose-response
 
 6.  **`fixed = c(NA, 0, 100, NA)`**:
 
-    -   Here, you’re fixing two of the parameters of the Weibull model:
+    -   Here, I fixed two of the parameters of the log-logistic model:
 
         -   **Slope (`b`)**: Unfixed (`NA`), meaning it will be estimated by the model.
 
